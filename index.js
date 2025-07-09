@@ -57,7 +57,9 @@ async function reconectarSubbotsExistentes() {
     }
   }
 }
-
+  function gestionarConexion(sock, isSubbot = false) {
+  const sessionPath = sock.sessionPath || "./sessions";
+  const idSesion = sessionPath.split(/[\\/]/).pop();
   
 async function iniciarSubbotDesdePath(sessionPath) {
   const { useMultiFileAuthState, fetchLatestBaileysVersion, makeCacheableSignalKeyStore, default: makeWASocket } = require('@whiskeysockets/baileys');
@@ -493,9 +495,7 @@ sock.ev.on("messages.upsert", async (messageUpsert) => {
 
 let reconnectionAttempts = {}; // conteo por sesión
 
-  function gestionarConexion(sock, isSubbot = false) {
-  const sessionPath = sock.sessionPath || "./sessions";
-  const idSesion = sessionPath.split(/[\\/]/).pop();
+
 
   sock.ev.on("connection.update", async (update) => {
     try {
