@@ -154,20 +154,19 @@ function isAllowedUser(sender) {
 }
     
     //privado y admins
-const activosPath = "./activos.json"; // ✅ nuevo nombre sin conflicto
-
+const activosPath = "./activos.json"; // ✅ renombrado
 
 // 📂 Cargar configuración de modos desde el archivo JSON
 function cargarModos() {
-    if (!fs.existsSync(path)) {
-        fs.writeFileSync(path, JSON.stringify({ modoPrivado: false, modoAdmins: {} }, null, 2));
+    if (!fs.existsSync(activosPath)) {
+        fs.writeFileSync(activosPath, JSON.stringify({ modoPrivado: false, modoAdmins: {} }, null, 2));
     }
-    return JSON.parse(fs.readFileSync(path, "utf-8"));
+    return JSON.parse(fs.readFileSync(activosPath, "utf-8"));
 }
 
 // 📂 Guardar configuración de modos en el archivo JSON
 function guardarModos(data) {
-    fs.writeFileSync(path, JSON.stringify(data, null, 2));
+    fs.writeFileSync(activosPath, JSON.stringify(data, null, 2));
 }
 
 let modos = cargarModos();
