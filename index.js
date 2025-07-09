@@ -142,7 +142,7 @@ const path = require("path");
     // Carga de credenciales y estado de autenticación
     const { state, saveCreds } = await useMultiFileAuthState("./sessions");
   const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
-  
+  const { Boom } = require("@hapi/boom");
   //lista
 function isAllowedUser(sender) {
   const listaFile = "./lista.json";
@@ -490,107 +490,8 @@ sock.ev.on("messages.upsert", async (messageUpsert) => {
             
             
 
-const { Boom } = require("@hapi/boom");
+
 let reconnectionAttempts = {}; // conteo por sesión
-
-sock.ev.on("connection.update", async (update) => {
-  const { connection, lastDisconnect } = update;
-
-  const sessionPath = sock.sessionPath || "./sessions";
-  const isSubbot = sessionPath.includes("/subbots/") || sessionPath.includes("\\subbots\\");
-  const idSesion = sessionPath.split(/[\\/]/).pop(); // nombre de carpeta
-
-  if (connection === "connecting") {
-    console.log(chalk.blue(`🔄 Conectando a WhatsApp... (${isSubbot ? "subbot" : "bot principal"})`));
-  }
-
-  else if (connection === "open") {
-    console.log(chalk.green(`✅ ¡Conexión establecida con éxito! (${isSubbot ? "subbot" : "bot principal"})`));
-
-    // ✅ Si es subbot reconectado, mostrar aviso especial
-    if (isSubbot) {
-      console.log(chalk.cyan(`🤖 Subbot ${chalk.bold(idSesion)} reconectado correctamente.`));
-    }
-
-    // Resetear intentos
-    reconnectionAttempts[idSesion] = 0;
-
-    // Solo para bot principal
-    if (!isSubbot) {
-      const restarterFile = "./lastRestarter.json";
-      if (fs.existsSync(restarterFile)) {
-        try {
-          const data = JSON.parse(fs.readFileSync(restarterFile, "utf-8"));
-          if (data.chatId) {
-            await sock.sendMessage(data.chatId, {
-              text: "✅ *El bot está en línea nuevamente tras el reinicio.* 🚀"
-            });
-            console.log(chalk.green("📢 Notificación enviada al chat del reinicio."));
-            fs.unlinkSync(restarterFile);
-          }
-        } catch (error) {
-          console.error("❌ Error al procesar lastRestarter.json:", error);
-        }
-      }
-    }
-  }
-
-  else if (connection === "close") {
-    const reasonCode = new Boom(lastDisconnect?.error)?.output?.statusCode || 0;
-    const reasonText = require("@whiskeysockets/baileys").DisconnectReason[reasonCode] || "Motivo desconocido";
-    const maxIntentos = 3;
-
-    console.log(chalk.red(`❌ Conexión cerrada (${isSubbot ? "subbot" : "principal"}: ${idSesion})`));
-    console.log(chalk.red(`🔁 Intentando reconectar... Motivo: ${reasonText}`));
-
-    reconnectionAttempts[idSesion] = (reconnectionAttempts[idSesion] || 0) + 1;
-
-    if (isSubbot) {
-      if (reconnectionAttempts[idSesion] <= maxIntentos) {
-        console.log(chalk.yellow(`🔄 Reintentando subbot (${idSesion}) [Intento ${reconnectionAttempts[idSesion]}/${maxIntentos}]`));
-        setTimeout(() => {
-          iniciarSubbotDesdePath(sessionPath); // ← esta función debe existir
-        }, 3000);
-      } else {
-        console.log(chalk.red(`💥 Subbot (${idSesion}) falló ${maxIntentos} veces. Eliminando sesión.`));
-        try {
-          fs.rmSync(sessionPath, { recursive: true, force: true });
-          console.log(chalk.gray(`🧹 Sesión eliminada: ${sessionPath}`));
-        } catch (err) {
-          console.error("❌ Error al eliminar sesión:", err);
-        }
-      }
-    } else {
-      console.log(chalk.blue("🔄 Reiniciando el bot principal en 5 segundos..."));
-      setTimeout(startBot, 5000);
-    }
-  }
-});
-
-
-
-
-            
- 
-    
-            
-            sock.ev.on("creds.update", saveCreds);
-
-            // Manejo de errores global para evitar que el bot se detenga
-            process.on("uncaughtException", (err) => {
-                console.error(chalk.red("⚠️ Error no manejado:"), err);
-            });
-
-            process.on("unhandledRejection", (reason, promise) => {
-                console.error(chalk.red("🚨 Promesa rechazada sin manejar:"), promise, "razón:", reason);
-            });
-
-        } catch (error) {
-            console.error(chalk.red("❌ Error en la conexión:"), error);
-            console.log(chalk.blue("🔄 Reiniciando en 5 segundos..."));
-            setTimeout(startBot, 5000); // Intentar reconectar después de 5 segundos en caso de error
-        }
-    }
 
   function gestionarConexion(sock, isSubbot = false) {
   const sessionPath = sock.sessionPath || "./sessions";
@@ -661,8 +562,34 @@ sock.ev.on("connection.update", async (update) => {
     }
   });
 
-  sock.ev.on("creds.update", saveCreds);
-  }
+
+
+            
+ 
+    
+            
+            sock.ev.on("creds.update", saveCreds);
+
+            // Manejo de errores global para evitar que el bot se detenga
+            process.on("uncaughtException", (err) => {
+                console.error(chalk.red("⚠️ Error no manejado:"), err);
+            });
+
+            process.on("unhandledRejection", (reason, promise) => {
+                console.error(chalk.red("🚨 Promesa rechazada sin manejar:"), promise, "razón:", reason);
+            });
+
+        } catch (error) {
+            console.error(chalk.red("❌ Error en la conexión:"), error);
+            console.log(chalk.blue("🔄 Reiniciando en 5 segundos..."));
+            setTimeout(startBot, 5000); // Intentar reconectar después de 5 segundos en caso de error
+        }
+    }
+
+  
+
+  
+  
 await reconectarSubbotsExistentes();
     startBot();
 
