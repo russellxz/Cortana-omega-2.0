@@ -1,241 +1,594 @@
 (async () => {
-  const fs = require("fs");
-  const path = require("path");
-  const { Boom } = require("@hapi/boom");
-  const pino = require("pino");
-  const QRCode = require("qrcode");
-  const axios = require("axios");
-  const fetch = require("node-fetch");
-  const chalk = require("chalk");
-  const yargs = require("yargs/yargs");
-  const { tmpdir } = require("os");
-  const { join } = require("path");
-  const figlet = require("figlet");
-  const { readdirSync, statSync, unlinkSync } = require("fs");
-  const readline = require("readline");
-  const { isOwner, getPrefix, allowedPrefixes } = require("./config");
-  const { handleCommand } = require("./main");
-  const {
-    default: makeWASocket,
-    useMultiFileAuthState,
-    fetchLatestBaileysVersion,
-    makeCacheableSignalKeyStore,
-    DisconnectReason
-  } = require("@whiskeysockets/baileys");
-
-  // ——— Newsletter setup ———
-  let canalId     = ["120363266665814365@newsletter"];
-  let canalNombre = ["🪼 CORTANA 2.0 BOT 🪼"];
-
+let canalId = ["120363266665814365@newsletter"];  
+let canalNombre = ["🪼 CORTANA 2.0 BOT 🪼"]
   function setupConnection(conn) {
-    conn.sendMessage2 = async (chat, content, m, options = {}) => {
-      const firstChannel = { id: canalId[0], nombre: canalNombre[0] };
-      if (content.sticker) {
-        return conn.sendMessage(chat, { sticker: content.sticker }, { quoted: m, ...options });
-      }
-      const messageOptions = {
-        ...content,
-        mentions: content.mentions || options.mentions || [],
-        contextInfo: {
-          ...(content.contextInfo || {}),
-          forwardedNewsletterMessageInfo: {
-            newsletterJid: firstChannel.id,
-            serverMessageId: "",
-            newsletterName: firstChannel.nombre
-          },
-          forwardingScore: 9999999,
-          isForwarded: true,
-          mentionedJid: content.mentions || options.mentions || []
-        }
-      };
-      return conn.sendMessage(chat, messageOptions, {
-        quoted: m,
-        ephemeralExpiration: 86400000,
-        disappearingMessagesInChat: 86400000,
-        ...options
-      });
+  conn.sendMessage2 = async (chat, content, m, options = {}) => {
+    const firstChannel = { 
+      id: canalId[0], 
+      nombre: canalNombre[0] 
     };
+    if (content.sticker) {
+      return conn.sendMessage(chat, { 
+        sticker: content.sticker 
+      }, { 
+        quoted: m,
+        ...options 
+      });
+    }
+    const messageOptions = {
+      ...content,
+      mentions: content.mentions || options.mentions || [],
+      contextInfo: {
+        ...(content.contextInfo || {}),
+        forwardedNewsletterMessageInfo: {
+          newsletterJid: firstChannel.id,
+          serverMessageId: '',
+          newsletterName: firstChannel.nombre
+        },
+        forwardingScore: 9999999,
+        isForwarded: true,
+        mentionedJid: content.mentions || options.mentions || []
+      }
+    };
+
+    return conn.sendMessage(chat, messageOptions, {
+      quoted: m,
+      ephemeralExpiration: 86400000,
+      disappearingMessagesInChat: 86400000,
+      ...options
+    });
+  };
+}
+// subbots sistema
+async function reconectarSubbotsExistentes() {
+  const subbotsDir = path.resolve("./subbots");
+  if (!fs.existsSync(subbotsDir)) return;
+
+  const carpetas = fs.readdirSync(subbotsDir);
+  for (const carpeta of carpetas) {
+    const credPath = path.join(subbotsDir, carpeta, "creds.json");
+    if (fs.existsSync(credPath)) {
+      console.log(`🔁 Reestableciendo subbot: ${carpeta}`);
+      try {
+        await iniciarSubbotDesdePath(path.join(subbotsDir, carpeta));
+      } catch (err) {
+        console.error(`❌ Error al reconectar subbot ${carpeta}:`, err);
+      }
+    }
+  }
+}
+
+  
+async function iniciarSubbotDesdePath(sessionPath) {
+  const { useMultiFileAuthState, fetchLatestBaileysVersion, makeCacheableSignalKeyStore, default: makeWASocket } = require('@whiskeysockets/baileys');
+  const pino = require("pino");
+
+  const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
+  const { version } = await fetchLatestBaileysVersion();
+
+  const socky = makeWASocket({
+    version,
+    logger: pino({ level: "silent" }),
+    auth: {
+      creds: state.creds,
+      keys: makeCacheableSignalKeyStore(state.keys)
+    },
+    printQRInTerminal: false,
+    browser: ['Subbot', 'Chrome']
+  });
+
+  socky.sessionPath = sessionPath;
+  gestionarConexion(socky, true);
+  socky.ev.on("creds.update", saveCreds);
+}
+//sistema subbots  
+  
+  //nsfw 
+async function getPrompt() {
+  try {
+    const res = await fetch('https://raw.githubusercontent.com/elrebelde21/LoliBot-MD/main/src/text-chatgpt.txt');
+    return await res.text();
+  } catch {
+    return 'Eres un asistente inteligente';
+  }
+}
+
+  
+function cleanResponse(text) {
+  if (!text) return '';
+  return text
+    .replace(/Maaf, terjadi kesalahan saat memproses permintaan Anda/g, '')
+    .replace(/Generated by BLACKBOX\.AI.*?https:\/\/www\.blackbox\.ai/g, '')
+    .replace(/and for API requests replace https:\/\/www\.blackbox\.ai with https:\/\/api\.blackbox\.ai/g, '')
+    .trim();
+}
+
+async function luminaiQuery(q, user, prompt) {
+  const { data } = await axios.post('https://luminai.my.id', {
+    content: q,
+    user: user,
+    prompt: prompt,
+    webSearchMode: true
+  });
+  return data.result;
+}
+
+async function perplexityQuery(q, prompt) {
+  const { data } = await axios.get('https://api.perplexity.ai/chat', {
+    params: {
+      query: encodeURIComponent(q),
+      context: encodeURIComponent(prompt)
+    }
+  });
+  return data.response;
+}
+  //lumi
+  const axios = require("axios");
+const fetch = require("node-fetch");
+
+   
+    const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, makeCacheableSignalKeyStore } = require("@whiskeysockets/baileys");
+    const chalk = require("chalk");
+    const yargs = require('yargs/yargs')
+    const { tmpdir } = require('os')
+    const { join } = require('path')
+    const figlet = require("figlet");
+    const fs = require("fs");
+    const { readdirSync, statSync, unlinkSync } = require('fs')
+    const readline = require("readline");
+    const pino = require("pino");
+    const { isOwner, getPrefix, allowedPrefixes } = require("./config");
+    const { handleCommand } = require("./main"); 
+    // Carga de credenciales y estado de autenticación
+    const { state, saveCreds } = await useMultiFileAuthState("./sessions");
+  const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
+  const path = require("path");
+  //lista
+function isAllowedUser(sender) {
+  const listaFile = "./lista.json";
+  if (!fs.existsSync(listaFile)) return false;
+  const lista = JSON.parse(fs.readFileSync(listaFile, "utf-8"));
+  // Extrae solo los dígitos del número para comparar
+  const num = sender.replace(/\D/g, "");
+  return lista.includes(num);
+}
+    
+    //privado y admins
+
+const activosPath = "./activos.json";
+
+// 📂 Cargar configuración de modos desde el archivo JSON
+function cargarModos() {
+    if (!fs.existsSync(path)) {
+        fs.writeFileSync(path, JSON.stringify({ modoPrivado: false, modoAdmins: {} }, null, 2));
+    }
+    return JSON.parse(fs.readFileSync(path, "utf-8"));
+}
+
+// 📂 Guardar configuración de modos en el archivo JSON
+function guardarModos(data) {
+    fs.writeFileSync(path, JSON.stringify(data, null, 2));
+}
+
+let modos = cargarModos();
+    
+    // Configuración de consola
+    console.log(chalk.cyan(figlet.textSync("Cortana 2.0 Bot", { font: "Standard" })));    
+    console.log(chalk.green("\n✅ Iniciando conexión...\n"));
+    
+    // ✅ Mostrar opciones de conexión bien presentadas
+    console.log(chalk.yellow("📡 ¿Cómo deseas conectarte?\n"));
+    console.log(chalk.green("  [1] ") + chalk.white("📷 Escanear código QR"));
+    console.log(chalk.green("  [2] ") + chalk.white("🔑 Ingresar código de 8 dígitos\n"));
+
+    // Manejo de entrada de usuario
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    const question = (text) => new Promise((resolve) => rl.question(text, resolve));
+
+    let method = "1"; // Por defecto: Código QR
+    if (!fs.existsSync("./sessions/creds.json")) {
+        method = await question(chalk.magenta("📞 Ingresa tu número (Ej: 5491168XXXX) "));
+
+        if (!["1", "2"].includes(method)) {
+            console.log(chalk.red("\n❌ Opción inválida. Reinicia el bot y elige 1 o 2."));
+            process.exit(1);
+        }
+    }
+
+    async function startBot() {
+        try {
+            let { version } = await fetchLatestBaileysVersion();
+            const socketSettings = {
+                printQRInTerminal: method === "1",
+                logger: pino({ level: "silent" }),
+                auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "silent" })) },
+                browser: method === "1" ? ["AzuraBot", "Safari", "1.0.0"] : ["Ubuntu", "Chrome", "20.0.04"],
+            };
+
+            const sock = makeWASocket(socketSettings);
+setupConnection(sock)
+         //subbott 
+         await reconectarSubbotsExistentes(); // 🔁 RECONEXIÓN automática de subbots 
+          // Si la sesión no existe y se usa el código de 8 dígitos
+            if (!fs.existsSync("./sessions/creds.json") && method === "2") {
+                let phoneNumber = await question("😎Fino vamos aya😎: ");
+                phoneNumber = phoneNumber.replace(/\D/g, "");
+                setTimeout(async () => {
+                    let code = await sock.requestPairingCode(phoneNumber);
+                    console.log(chalk.magenta("🔑 Código de vinculación: ") + chalk.yellow(code.match(/.{1,4}/g).join("-")));
+                }, 2000);
+            }
+
+//_________________
+
+global.opts = new Object(yargs(process.argv.slice(2)).exitProcess(false).parse())
+
+//tmp
+if (!opts['test']) {
+  setInterval(async () => {
+  //  if (global.db.data) await global.db.write().catch(console.error)
+    if (opts['autocleartmp']) try {
+      clearTmp()
+
+    } catch (e) { console.error(e) }
+  }, 60 * 1000)
+}
+
+if (opts['server']) (await import('./server.js')).default(global.conn, PORT)
+
+/* Clear */
+async function clearTmp() {
+  const tmp = [tmpdir(), join(__dirname, './tmp')]
+  const filename = []
+  tmp.forEach(dirname => readdirSync(dirname).forEach(file => filename.push(join(dirname, file))))
+
+  //---
+  return filename.map(file => {
+    const stats = statSync(file)
+    if (stats.isFile() && (Date.now() - stats.mtimeMs >= 1000 * 60 * 1)) return unlinkSync(file) // 1 minuto
+    return false
+  })
+}
+
+setInterval(async () => {
+  await clearTmp()
+  console.log(chalk.cyanBright(`╭━─━─━─≪🔆≫─━─━─━╮\n│SE LIMPIO LA CARPETA TMP CORRECTAMENTE\n╰━─━─━─≪🔆≫─━─━─━╯`))
+}, 1000 * 60 * 60); // ← 1 hora en milisegundos
+
+//sessions/jadibts
+            // Función para verificar si un usuario es administrador en un grupo
+            async function isAdmin(sock, chatId, sender) {
+                try {
+                    const groupMetadata = await sock.groupMetadata(chatId);
+                    const admins = groupMetadata.participants
+                        .filter(p => p.admin)
+                        .map(p => p.id);
+                    return admins.includes(sender) || isOwner(sender);
+                } catch (error) {
+                    console.error("Error verificando administrador:", error);
+                    return false;
+                }
+            }
+
+// Ruta de los archivos a limpiar
+const archivosAntidelete = ['./antidelete.json', './antideletepri.json'];
+
+function limpiarAntidelete() {
+  for (const archivo of archivosAntidelete) {
+    if (fs.existsSync(archivo)) {
+      fs.writeFileSync(archivo, JSON.stringify({}, null, 2));
+      console.log(`🧹 Archivo limpiado: ${archivo}`);
+    }
+  }
+}
+
+// Ejecutar limpieza cada 30 minutos
+setInterval(limpiarAntidelete, 30 * 60 * 1000); // 30 min
+
+// Ejecutar una vez al inicio
+limpiarAntidelete();
+//cada 30 minutos antidelete          
+          
+// Función para revisar y actualizar grupos cada 5 segundos
+setInterval(async () => {
+  try {
+    const ahora = Date.now();
+
+    // === REVISAR CIERRE AUTOMÁTICO ===
+    const tiempoCerrarPath = path.resolve("./tiempo1.json");
+    if (fs.existsSync(tiempoCerrarPath)) {
+      const tiempoCerrar = JSON.parse(fs.readFileSync(tiempoCerrarPath, "utf-8"));
+
+      for (const groupId of Object.keys(tiempoCerrar)) {
+        const tiempoLimite = tiempoCerrar[groupId];
+        if (ahora >= tiempoLimite) {
+          console.log(`⏰ Se cumplió el tiempo para CERRAR el grupo: ${groupId}`);
+
+          try {
+            await sock.groupSettingUpdate(groupId, "announcement"); // Cerrar grupo
+            await sock.sendMessage(groupId, {
+              text: "🔒 El grupo ha sido cerrado automáticamente. Solo admins pueden escribir."
+            });
+          } catch (error) {
+            console.error(`❌ Error cerrando grupo ${groupId}:`, error);
+          }
+
+          delete tiempoCerrar[groupId];
+          fs.writeFileSync(tiempoCerrarPath, JSON.stringify(tiempoCerrar, null, 2));
+        }
+      }
+    }
+//limpieza
+    
+    // === REVISAR APERTURA AUTOMÁTICA ===
+    const tiempoAbrirPath = path.resolve("./tiempo2.json");
+    if (fs.existsSync(tiempoAbrirPath)) {
+      const tiempoAbrir = JSON.parse(fs.readFileSync(tiempoAbrirPath, "utf-8"));
+
+      for (const groupId of Object.keys(tiempoAbrir)) {
+        const tiempoLimite = tiempoAbrir[groupId];
+        if (ahora >= tiempoLimite) {
+          console.log(`⏰ Se cumplió el tiempo para ABRIR el grupo: ${groupId}`);
+
+          try {
+            await sock.groupSettingUpdate(groupId, "not_announcement"); // Abrir grupo
+            await sock.sendMessage(groupId, {
+              text: "🔓 El grupo ha sido abierto automáticamente. ¡Todos pueden escribir!"
+            });
+          } catch (error) {
+            console.error(`❌ Error abriendo grupo ${groupId}:`, error);
+          }
+
+          delete tiempoAbrir[groupId];
+          fs.writeFileSync(tiempoAbrirPath, JSON.stringify(tiempoAbrir, null, 2));
+        }
+      }
+    }
+
+  } catch (error) {
+    console.error("❌ Error en la revisión automática de grupos:", error);
+  }
+}, 5000); // Revisa cada 5 segundos
+//ok de abria onkkkkkk
+          
+
+
+           
+            // 🟢 Consola de mensajes entrantes con diseño
+
+sock.ev.on("messages.upsert", async (messageUpsert) => {
+  try {
+    const msg = messageUpsert.messages[0];
+    if (!msg || !msg.message) return;
+
+    const chatId = msg.key.remoteJid;
+    const isGroup = chatId.endsWith("@g.us");
+    const sender = msg.key.participant
+      ? msg.key.participant.replace(/[^0-9]/g, "")
+      : msg.key.remoteJid.replace(/[^0-9]/g, "");
+    const botNumber = sock.user.id.split(":")[0].replace(/[^0-9]/g, "");
+    const fromMe = msg.key.fromMe || sender === botNumber;
+
+    let messageText =
+      msg.message?.conversation ||
+      msg.message?.extendedTextMessage?.text ||
+      msg.message?.imageMessage?.caption ||
+      msg.message?.videoMessage?.caption ||
+      "";
+
+    const isSubbot = sock.sessionPath && sock.sessionPath.includes("subbots");
+    const subbotID = sock.user?.id?.split(":")[0] + "@s.whatsapp.net";
+
+    // 🔷 Si es subbot, aplicar lógica estricta
+    if (isSubbot) {
+      const fs = require("fs");
+      const path = require("path");
+
+      const grupoPath = path.resolve("grupo.json");
+      const listaPrivPath = path.resolve("listasubots.json");
+      const prefixPath = path.resolve("prefixes.json");
+
+      // 1. Prefijo personalizado o por defecto
+      let customPrefix = ".";
+      try {
+        if (fs.existsSync(prefixPath)) {
+          const dataPrefix = JSON.parse(fs.readFileSync(prefixPath));
+          customPrefix = dataPrefix[subbotID] || ".";
+        }
+      } catch (e) {}
+
+      const allowedPrefixes = [customPrefix, "#"];
+      const usedPrefix = allowedPrefixes.find((p) => messageText.startsWith(p));
+      if (!usedPrefix) return;
+
+      const body = messageText.slice(usedPrefix.length).trim();
+      const command = body.split(" ")[0].toLowerCase();
+      const args = body.split(" ").slice(1);
+
+      // 2. GRUPO
+      if (isGroup) {
+        let gruposPermitidos = [];
+        try {
+          if (fs.existsSync(grupoPath)) {
+            const dataGrupos = JSON.parse(fs.readFileSync(grupoPath));
+            gruposPermitidos = Array.isArray(dataGrupos[subbotID]) ? dataGrupos[subbotID] : [];
+          }
+        } catch (e) {}
+
+        const allowedCommands = ["addgrupo"]; // estos comandos siempre funcionan
+        const esAdminGrupo = msg.key.fromMe || sender === botNumber;
+
+        if (!gruposPermitidos.includes(chatId) && !allowedCommands.includes(command)) {
+          return;
+        }
+
+        // Ejecutar comandos desde plugins2/
+        const filePath = path.join(__dirname, "plugins2", `${command}.js`);
+        if (fs.existsSync(filePath)) {
+          const plugin = require(filePath);
+          if (plugin && typeof plugin === "function") {
+            await plugin(msg, { conn: sock, text: args.join(" "), command });
+          } else if (plugin?.command?.includes?.(command)) {
+            await plugin.run(sock, msg, args);
+          }
+        }
+
+        return;
+      }
+
+      // 3. PRIVADO
+      if (!isGroup) {
+        if (!fromMe) {
+          let listaPermitidos = [];
+          try {
+            if (fs.existsSync(listaPrivPath)) {
+              const dataLista = JSON.parse(fs.readFileSync(listaPrivPath));
+              listaPermitidos = Array.isArray(dataLista[subbotID]) ? dataLista[subbotID] : [];
+            }
+          } catch (e) {}
+
+          if (!listaPermitidos.includes(sender)) {
+            return;
+          }
+        }
+
+        // Ejecutar comandos desde plugins2/
+        const filePath = path.join(__dirname, "plugins2", `${command}.js`);
+        if (fs.existsSync(filePath)) {
+          const plugin = require(filePath);
+          if (plugin && typeof plugin === "function") {
+            await plugin(msg, { conn: sock, text: args.join(" "), command });
+          } else if (plugin?.command?.includes?.(command)) {
+            await plugin.run(sock, msg, args);
+          }
+        }
+
+        return;
+      }
+
+      return; // seguridad extra
+    }
+
+    // 🔷 BOT PRINCIPAL: lógica intacta
+    const activos = fs.existsSync("./activos.json") ? JSON.parse(fs.readFileSync("./activos.json")) : {};
+    const lista = fs.existsSync("./lista.json") ? JSON.parse(fs.readFileSync("./lista.json")) : [];
+    const isAllowedUser = (num) => lista.includes(num);
+
+    console.log(chalk.yellow(`\n📩 Nuevo mensaje recibido`));
+    console.log(chalk.green(`📨 De: ${fromMe ? "[Tú]" : "[Usuario]"} ${chalk.bold(sender)}`));
+    console.log(chalk.cyan(`💬 Mensaje: ${chalk.bold(messageText || "📂 (Mensaje multimedia)")}`));
+    console.log(chalk.gray("──────────────────────────"));
+
+    if (messageText.startsWith(global.prefix)) {
+      const command = messageText.slice(global.prefix.length).trim().split(" ")[0];
+      const args = messageText.slice(global.prefix.length + command.length).trim().split(" ");
+      handleCommand(sock, msg, command, args, sender);
+    }
+  } catch (error) {
+    console.error("❌ Error en messages.upsert:", error);
+  }
+});
+            
+            
+            
+const { Boom } = require("@hapi/boom");
+let reconnectionAttempts = {}; // conteo por sesión
+
+sock.ev.on("connection.update", async (update) => {
+  const { connection, lastDisconnect } = update;
+
+  const sessionPath = sock.sessionPath || "./sessions";
+  const isSubbot = sessionPath.includes("/subbots/") || sessionPath.includes("\\subbots\\");
+  const idSesion = sessionPath.split(/[\\/]/).pop(); // nombre de carpeta
+
+  if (connection === "connecting") {
+    console.log(chalk.blue(`🔄 Conectando a WhatsApp... (${isSubbot ? "subbot" : "bot principal"})`));
   }
 
-  // ——— Reconectar subbots existentes al inicio ———
-  async function reconectarSubbotsExistentes() {
-    const subbotsDir = path.resolve("./subbots");
-    if (!fs.existsSync(subbotsDir)) return;
-    for (const carpeta of fs.readdirSync(subbotsDir)) {
-      const credPath = path.join(subbotsDir, carpeta, "creds.json");
-      if (fs.existsSync(credPath)) {
-        console.log(`🔁 Reestableciendo subbot: ${carpeta}`);
+  else if (connection === "open") {
+    console.log(chalk.green(`✅ ¡Conexión establecida con éxito! (${isSubbot ? "subbot" : "bot principal"})`));
+
+    // Resetear intentos
+    reconnectionAttempts[idSesion] = 0;
+
+    // Solo para bot principal
+    if (!isSubbot) {
+      const restarterFile = "./lastRestarter.json";
+      if (fs.existsSync(restarterFile)) {
         try {
-          await iniciarSubbotDesdePath(path.join(subbotsDir, carpeta));
-        } catch (err) {
-          console.error(`❌ Error al reconectar subbot ${carpeta}:`, err);
+          const data = JSON.parse(fs.readFileSync(restarterFile, "utf-8"));
+          if (data.chatId) {
+            await sock.sendMessage(data.chatId, {
+              text: "✅ *El bot está en línea nuevamente tras el reinicio.* 🚀"
+            });
+            console.log(chalk.green("📢 Notificación enviada al chat del reinicio."));
+            fs.unlinkSync(restarterFile);
+          }
+        } catch (error) {
+          console.error("❌ Error al procesar lastRestarter.json:", error);
         }
       }
     }
   }
 
-  // ——— Iniciar un subbot desde su carpeta ———
-  async function iniciarSubbotDesdePath(sessionPath) {
-    const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
-    const { version } = await fetchLatestBaileysVersion();
-    const socky = makeWASocket({
-      version,
-      logger: pino({ level: "silent" }),
-      auth: {
-        creds: state.creds,
-        keys: makeCacheableSignalKeyStore(state.keys)
-      },
-      browser: ["Subbot", "Chrome"]
-    });
+  else if (connection === "close") {
+    const reasonCode = new Boom(lastDisconnect?.error)?.output?.statusCode || 0;
+    const reasonText = require("@whiskeysockets/baileys").DisconnectReason[reasonCode] || "Motivo desconocido";
+    const maxIntentos = 3;
 
-    socky.sessionPath = sessionPath;
-    setupConnection(socky);
+    console.log(chalk.red(`❌ Conexión cerrada (${isSubbot ? "subbot" : "principal"}: ${idSesion})`));
+    console.log(chalk.red(`🔁 Intentando reconectar... Motivo: ${reasonText}`));
 
-    // Suscribir lógica de subbot original para ejecutar plugins2
-    socky.ev.on("messages.upsert", async mUpsert => {
-      const msg = mUpsert.messages[0];
-      if (!msg || !msg.message) return;
-      const chatId = msg.key.remoteJid;
-      const isGroup = chatId.endsWith("@g.us");
-      const sender = msg.key.participant
-        ? msg.key.participant.replace(/\D/g, "")
-        : msg.key.remoteJid.replace(/\D/g, "");
-      const subbotID = socky.user.id.split(":")[0] + "@s.whatsapp.net";
+    reconnectionAttempts[idSesion] = (reconnectionAttempts[idSesion] || 0) + 1;
 
-      // Prefijo
-      const prefixPath = path.resolve("prefixes.json");
-      let customPrefix = ".";
-      if (fs.existsSync(prefixPath)) {
-        const pfx = JSON.parse(fs.readFileSync(prefixPath, "utf-8"));
-        customPrefix = pfx[subbotID] || customPrefix;
-      }
-      const text =
-        msg.message.conversation ||
-        msg.message.extendedTextMessage?.text ||
-        msg.message.imageMessage?.caption ||
-        msg.message.videoMessage?.caption ||
-        "";
-      const allowed = [customPrefix, "#"];
-      const used = allowed.find(p => text.startsWith(p));
-      if (!used) return;
-      const body = text.slice(used.length).trim();
-      const cmd = body.split(" ")[0].toLowerCase();
-      const args = body.split(" ").slice(1);
-
-      // Grupo
-      if (isGroup) {
-        const gpPath = path.resolve("grupo.json");
-        let grupos = [];
-        if (fs.existsSync(gpPath)) {
-          const g = JSON.parse(fs.readFileSync(gpPath, "utf-8"));
-          grupos = Array.isArray(g[subbotID]) ? g[subbotID] : [];
-        }
-        if (!grupos.includes(chatId) && cmd !== "addgrupo") return;
+    if (isSubbot) {
+      if (reconnectionAttempts[idSesion] <= maxIntentos) {
+        console.log(chalk.yellow(`🔄 Reintentando subbot (${idSesion}) [Intento ${reconnectionAttempts[idSesion]}/${maxIntentos}]`));
+        setTimeout(() => {
+          iniciarSubbotDesdePath(sessionPath); // ← esta función debe existir
+        }, 3000);
       } else {
-        // Privado
-        const lpPath = path.resolve("listasubots.json");
-        if (!msg.key.fromMe) {
-          let list = [];
-          if (fs.existsSync(lpPath)) {
-            const l = JSON.parse(fs.readFileSync(lpPath, "utf-8"));
-            list = Array.isArray(l[subbotID]) ? l[subbotID] : [];
-          }
-          if (!list.includes(sender)) return;
+        console.log(chalk.red(`💥 Subbot (${idSesion}) falló ${maxIntentos} veces. Eliminando sesión.`));
+        try {
+          fs.rmSync(sessionPath, { recursive: true, force: true });
+          console.log(chalk.gray(`🧹 Sesión eliminada: ${sessionPath}`));
+        } catch (err) {
+          console.error("❌ Error al eliminar sesión:", err);
         }
       }
-
-      // Ejecutar plugin
-      const filePath = path.join(__dirname, "plugins2", `${cmd}.js`);
-      if (fs.existsSync(filePath)) {
-        const plugin = require(filePath);
-        if (typeof plugin === "function") {
-          await plugin(msg, { conn: socky, text: args.join(" "), command: cmd });
-        } else if (plugin.command?.includes(cmd)) {
-          await plugin.run(socky, msg, args);
-        }
-      }
-    });
-
-    socky.ev.on("connection.update", ({ connection }) => {
-      if (connection === "open") {
-        const id = sessionPath.split(path.sep).pop();
-        console.log(`✅ Subbot reconectado: ${id}`);
-      }
-    });
-
-    socky.ev.on("creds.update", saveCreds);
-  }
-
-  // ——— Resto de tus funciones originales (getPrompt, cleanResponse, etc.) ———
-  async function getPrompt() { /* ... */ }
-  function cleanResponse(t)   { /* ... */ }
-  async function luminaiQuery(q,u,p) { /* ... */ }
-  async function perplexityQuery(q,p) { /* ... */ }
-  function isAllowedUser(s)  { /* ... */ }
-
-  // Modos privado/admin
-  const activosPath = "./activos.json";
-  function cargarModos() { /* ... */ }
-  function guardarModos(d) { /* ... */ }
-  let modos = cargarModos();
-
-  // ——— Inicio visual y entrada ———
-  console.log(chalk.cyan(figlet.textSync("Cortana 2.0 Bot", { font: "Standard" })));
-  console.log(chalk.green("\n✅ Iniciando conexión...\n"));
-  console.log(chalk.yellow("📡 ¿Cómo deseas conectarte?\n"));
-  console.log(chalk.green("  [1] ") + chalk.white("📷 Escanear código QR"));
-  console.log(chalk.green("  [2] ") + chalk.white("🔑 Ingresar código de 8 dígitos\n"));
-
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  const question = text => new Promise(res => rl.question(text, res));
-  let method = "1";
-  if (!fs.existsSync("./sessions/creds.json")) {
-    method = await question(chalk.magenta("📞 Ingresa tu número (Ej: 5491168XXXX) "));
-    if (!["1","2"].includes(method)) process.exit(1);
-  }
-
-  // ——— startBot ———
-  async function startBot() {
-    try {
-      const { state, saveCreds } = await useMultiFileAuthState("./sessions");
-      const { version } = await fetchLatestBaileysVersion();
-      const sock = makeWASocket({
-        version,
-        logger: pino({ level:"silent" }),
-        auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys) },
-        browser: method==="1"? ["AzuraBot","Safari","1.0.0"] : ["Ubuntu","Chrome","20.0.04"]
-      });
-      setupConnection(sock);
-
-      // Fallback prefix if getPrefix() missing
-      global.prefix = (typeof getPrefix === "function" ? getPrefix() : (allowedPrefixes[0] || "."));
-
-      // Reconexión automática de subbots
-      await reconectarSubbotsExistentes();
-
-      sock.ev.on("creds.update", saveCreds);
-
-      // Pairing code manual si método 2
-      if (method==="2" && !fs.existsSync("./sessions/creds.json")) {
-        let phone = await question("😎 Fino vamos aya 😎: ");
-        phone = phone.replace(/\D/g,"");
-        setTimeout(async()=>{
-          const code = await sock.requestPairingCode(phone);
-          console.log(chalk.magenta("🔑 Código de vinculación: ")+chalk.yellow(code.match(/.{1,4}/g).join("-")));
-        },2000);
-      }
-
-      // Aquí suscribe tus handlers originales de mensajes y conexión
-      sock.ev.on("messages.upsert", /* tu handler principal intacto */);
-      sock.ev.on("connection.update", /* tu handler principal intacto */);
-
-    } catch (e) {
-      console.error(chalk.red("❌ Error en startBot:"), e);
+    } else {
+      console.log(chalk.blue("🔄 Reiniciando el bot principal en 5 segundos..."));
       setTimeout(startBot, 5000);
     }
   }
+});
 
-  // ——— Ejecutar todo ———
-  await reconectarSubbotsExistentes();
-  startBot();
+
+
+
+            
+ 
+    
+            
+            sock.ev.on("creds.update", saveCreds);
+
+            // Manejo de errores global para evitar que el bot se detenga
+            process.on("uncaughtException", (err) => {
+                console.error(chalk.red("⚠️ Error no manejado:"), err);
+            });
+
+            process.on("unhandledRejection", (reason, promise) => {
+                console.error(chalk.red("🚨 Promesa rechazada sin manejar:"), promise, "razón:", reason);
+            });
+
+        } catch (error) {
+            console.error(chalk.red("❌ Error en la conexión:"), error);
+            console.log(chalk.blue("🔄 Reiniciando en 5 segundos..."));
+            setTimeout(startBot, 5000); // Intentar reconectar después de 5 segundos en caso de error
+        }
+    }
+
+    startBot();
+
 })();
+
