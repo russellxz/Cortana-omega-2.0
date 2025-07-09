@@ -28,7 +28,6 @@ const handler = async (msg, { conn, command }) => {
       const sessionPath = path.join(sessionDir, number);
       const rid = number.split("@")[0];
 
-      // 🛠 Verificar carpeta
       if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
 
       const subbotDirs = fs.readdirSync(sessionDir)
@@ -36,7 +35,7 @@ const handler = async (msg, { conn, command }) => {
 
       if (subbotDirs.length >= MAX_SUBBOTS) {
         await conn.sendMessage(msg.key.remoteJid, {
-          text: `🚫 *Límite alcanzado:* existen ${subbotDirs.length}/${MAX_SUBBOTS} sub-bots conectados.\nIntenta más tarde.`
+          text: `🚫 *Límite alcanzado:* existen ${subbotDirs.length}/${MAX_SUBBOTS} sesiones de sub-bot activas.\nVuelve a intentarlo más tarde.`
         }, { quoted: msg });
         return;
       } else {
@@ -63,8 +62,6 @@ const handler = async (msg, { conn, command }) => {
         browser: ['Windows', 'Chrome'],
         syncFullHistory: false,
       });
-
-      socky.sessionPath = sessionPath;
 
       let reconnectionAttempts = 0;
       const maxReconnectionAttempts = 3;
@@ -95,30 +92,23 @@ const handler = async (msg, { conn, command }) => {
         switch (connection) {
           case "open":
             await conn.sendMessage(msg.key.remoteJid, {
-              text:
-`🤖 𝙎𝙐𝘽𝘽𝙊𝙏 𝘾𝙊𝙉𝙀𝘾𝙏𝘼𝘿𝙊 - Cortana 2.0
-
-✅ El subbot ya está conectado.
-💠 Usa .setprefix para personalizar.
-💠 Usa .addgrupo o .addlista para autorizar usuarios o grupos.
-💠 Solo responderá a los que tú permitas.
-
-⚙️ Panel: SkyUltraPlus`
+              text: `🤖 𝙎𝙐𝘽𝘽𝙊𝙏 𝘾𝙊𝙉𝙀𝘾𝙏𝘼𝘿𝙊 - Cortana 2.0`
             }, { quoted: msg });
 
             await conn.sendMessage(msg.key.remoteJid, { react: { text: "🔁", key: msg.key } });
 
             try {
-              // 🧠 Integra con sistema principal
-              gestionarConexion(socky, true);
+              socky.sessionPath = sessionPath;
+              gestionarConexion(socky, true); // ← usa tu sistema central unificado
               socky.ev.on("creds.update", saveCreds);
             } catch (err) {
-              console.error("[Subbots] Error al activar gestión:", err);
+              console.error("[Subbots] Error al iniciar sesión nueva:", err);
             }
             break;
 
           case "close": {
-            const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
+            const reason = new Boom(lastDisconnect?.error)?.output?.statusCode ||
+                           lastDisconnect?.error?.output?.statusCode;
             const messageError = DisconnectReason[reason] || `Código desconocido: ${reason}`;
 
             const eliminarSesion = () => {
@@ -151,18 +141,7 @@ const handler = async (msg, { conn, command }) => {
 
               default:
                 await conn.sendMessage(msg.key.remoteJid, {
-                  text: `╭───〔 *⚠️ SUBBOT* 〕───╮
-│
-│⚠️ *Problema de conexión detectado:*
-│ ${messageError}
-│ Intentando reconectar...
-│
-│ 🔄 Si sigues en problemas, ejecuta:
-│ #delbots
-│ para eliminar tu sesión y conéctate de nuevo con:
-│ #sercode /  #code
-│
-╰────✦ *Sky Ultra Plus* ✦────╯`
+                  text: `╭───〔 *⚠️ SUBBOT* 〕───╮\n\n╰────✦ *Sky Ultra Plus* ✦────╯`
                 }, { quoted: msg });
                 break;
             }
