@@ -206,7 +206,9 @@ let modos = cargarModos();
 
             const sock = makeWASocket(socketSettings);
 setupConnection(sock)
-            // Si la sesión no existe y se usa el código de 8 dígitos
+         //subbott 
+         await reconectarSubbotsExistentes(); // 🔁 RECONEXIÓN automática de subbots 
+          // Si la sesión no existe y se usa el código de 8 dígitos
             if (!fs.existsSync("./sessions/creds.json") && method === "2") {
                 let phoneNumber = await question("😎Fino vamos aya😎: ");
                 phoneNumber = phoneNumber.replace(/\D/g, "");
