@@ -625,7 +625,7 @@ let reconnectionAttempts = {}; // conteo por sesión
   });
 
   sock.ev.on("creds.update", saveCreds);
-}
+
 
 
 
