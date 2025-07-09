@@ -39,6 +39,8 @@ let canalNombre = ["🪼 CORTANA 2.0 BOT 🪼"]
     });
   };
 }
+
+let reconnectionAttempts = {}; // conteo por sesión  
 // subbots sistema
 async function reconectarSubbotsExistentes() {
   const subbotsDir = path.resolve("./subbots");
@@ -550,8 +552,6 @@ sock.ev.on("messages.upsert", async (messageUpsert) => {
             
             
 
-
-let reconnectionAttempts = {}; // conteo por sesión
 
 
 
