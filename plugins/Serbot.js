@@ -63,6 +63,8 @@ const handler = async (msg, { conn, command }) => {
         syncFullHistory: false,
       });
 
+      socky.sessionPath = sessionPath; // ← esto activa el sistema de subbots en index.js
+
       let reconnectionAttempts = 0;
       const maxReconnectionAttempts = 3;
 
@@ -96,14 +98,7 @@ const handler = async (msg, { conn, command }) => {
             }, { quoted: msg });
 
             await conn.sendMessage(msg.key.remoteJid, { react: { text: "🔁", key: msg.key } });
-
-            try {
-              socky.sessionPath = sessionPath;
-              gestionarConexion(socky, true); // ← usa tu sistema central unificado
-              socky.ev.on("creds.update", saveCreds);
-            } catch (err) {
-              console.error("[Subbots] Error al iniciar sesión nueva:", err);
-            }
+            socky.ev.on("creds.update", saveCreds);
             break;
 
           case "close": {
