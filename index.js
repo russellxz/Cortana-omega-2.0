@@ -508,6 +508,11 @@ sock.ev.on("connection.update", async (update) => {
   else if (connection === "open") {
     console.log(chalk.green(`✅ ¡Conexión establecida con éxito! (${isSubbot ? "subbot" : "bot principal"})`));
 
+    // ✅ Si es subbot reconectado, mostrar aviso especial
+    if (isSubbot) {
+      console.log(chalk.cyan(`🤖 Subbot ${chalk.bold(idSesion)} reconectado correctamente.`));
+    }
+
     // Resetear intentos
     reconnectionAttempts[idSesion] = 0;
 
