@@ -39,7 +39,33 @@ let canalNombre = ["🪼 CORTANA 2.0 BOT 🪼"]
     });
   };
 }
-//nsfw 
+// subbots sistema
+  
+async function iniciarSubbotDesdePath(sessionPath) {
+  const { useMultiFileAuthState, fetchLatestBaileysVersion, makeCacheableSignalKeyStore, default: makeWASocket } = require('@whiskeysockets/baileys');
+  const pino = require("pino");
+
+  const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
+  const { version } = await fetchLatestBaileysVersion();
+
+  const socky = makeWASocket({
+    version,
+    logger: pino({ level: "silent" }),
+    auth: {
+      creds: state.creds,
+      keys: makeCacheableSignalKeyStore(state.keys)
+    },
+    printQRInTerminal: false,
+    browser: ['Subbot', 'Chrome']
+  });
+
+  socky.sessionPath = sessionPath;
+  gestionarConexion(socky, true);
+  socky.ev.on("creds.update", saveCreds);
+}
+//sistema subbots  
+  
+  //nsfw 
 async function getPrompt() {
   try {
     const res = await fetch('https://raw.githubusercontent.com/elrebelde21/LoliBot-MD/main/src/text-chatgpt.txt');
