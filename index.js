@@ -586,6 +586,6 @@ const path = require("path");
     }
 
     startBot();
-  
+await reconectarSubbotsExistentes();  
 })();
-await reconectarSubbotsExistentes();
+
