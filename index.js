@@ -40,7 +40,7 @@ let canalNombre = ["🪼 CORTANA 2.0 BOT 🪼"]
   };
 }
 
-let reconnectionAttempts = {}; // conteo por sesión  
+
 // subbots sistema
 async function reconectarSubbotsExistentes() {
   const subbotsDir = path.resolve("./subbots");
