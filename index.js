@@ -154,7 +154,7 @@ function isAllowedUser(sender) {
 }
     
     //privado y admins
-
+const path = "./activos.json";
 
 
 // 📂 Cargar configuración de modos desde el archivo JSON
@@ -170,7 +170,7 @@ function guardarModos(data) {
     fs.writeFileSync(path, JSON.stringify(data, null, 2));
 }
 
-
+let modos = cargarModos();
     
     // Configuración de consola
     console.log(chalk.cyan(figlet.textSync("Cortana 2.0 Bot", { font: "Standard" })));    
@@ -596,4 +596,3 @@ await reconectarSubbotsExistentes();
     startBot();
 
 })();
-
