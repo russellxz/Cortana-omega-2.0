@@ -142,7 +142,7 @@ const fetch = require("node-fetch");
     // Carga de credenciales y estado de autenticación
     const { state, saveCreds } = await useMultiFileAuthState("./sessions");
   const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
-  const path = require("path");
+  
   //lista
 function isAllowedUser(sender) {
   const listaFile = "./lista.json";
@@ -155,7 +155,7 @@ function isAllowedUser(sender) {
     
     //privado y admins
 
-const activosPath = "./activos.json";
+const path = "./activos.json";
 
 // 📂 Cargar configuración de modos desde el archivo JSON
 function cargarModos() {
@@ -208,7 +208,7 @@ let modos = cargarModos();
             const sock = makeWASocket(socketSettings);
 setupConnection(sock)
          //subbott 
-         await reconectarSubbotsExistentes(); // 🔁 RECONEXIÓN automática de subbots 
+         
           // Si la sesión no existe y se usa el código de 8 dígitos
             if (!fs.existsSync("./sessions/creds.json") && method === "2") {
                 let phoneNumber = await question("😎Fino vamos aya😎: ");
@@ -565,7 +565,7 @@ sock.ev.on("connection.update", async (update) => {
 
 
 
-
+const path = require("path");
             
  
     
@@ -587,7 +587,7 @@ sock.ev.on("connection.update", async (update) => {
             setTimeout(startBot, 5000); // Intentar reconectar después de 5 segundos en caso de error
         }
     }
-
+await reconectarSubbotsExistentes(); // 🔁 RECONEXIÓN automática de subbots 
     startBot();
 
 })();
