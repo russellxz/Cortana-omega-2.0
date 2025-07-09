@@ -561,12 +561,6 @@ sock.ev.on("messages.upsert", async (messageUpsert) => {
             
 
 
-
-function gestionarConexion(sock, isSubbot = false) {
-  const sessionPath = sock.sessionPath || "./sessions";
-  const idSesion = sessionPath.split(/[\\/]/).pop();
-  const maxIntentos = 3;
-
   sock.ev.on("connection.update", async (update) => {
     try {
       const { connection, lastDisconnect } = update;
