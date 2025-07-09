@@ -83,6 +83,10 @@ async function iniciarSubbotDesdePath(sessionPath) {
   socky.ev.on("creds.update", saveCreds);
 }
 //sistema subbots  
+const { Boom } = require("@hapi/boom");
+
+let reconnectionAttempts = {}; // ✅ GLOBAL
+
 function gestionarConexion(sock, isSubbot = false) {
   const sessionPath = sock.sessionPath || "./sessions";
   const idSesion = sessionPath.split(/[\\/]/).pop();
@@ -100,15 +104,13 @@ function gestionarConexion(sock, isSubbot = false) {
 
       else if (connection === "open") {
         console.log(chalk.green(`✅ ¡Conexión establecida con éxito! (${isSubbot ? "subbot" : "bot principal"})`));
-
+        
         if (isSubbot) {
           console.log(chalk.cyan(`🤖 Subbot ${chalk.bold(idSesion)} reconectado correctamente.`));
         }
 
-        // Resetear contador de reconexión
         reconnectionAttempts[idSesion] = 0;
 
-        // Solo para el bot principal
         if (!isSubbot) {
           const restarterFile = "./lastRestarter.json";
           if (fs.existsSync(restarterFile)) {
@@ -153,6 +155,8 @@ function gestionarConexion(sock, isSubbot = false) {
 
   sock.ev.on("creds.update", saveCreds);
 }
+
+  
   //nsfw 
 async function getPrompt() {
   try {
@@ -212,7 +216,7 @@ const path = require("path");
     // Carga de credenciales y estado de autenticación
     const { state, saveCreds } = await useMultiFileAuthState("./sessions");
   const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
-  const { Boom } = require("@hapi/boom");
+ 
   //lista
 function isAllowedUser(sender) {
   const listaFile = "./lista.json";
@@ -561,7 +565,7 @@ sock.ev.on("messages.upsert", async (messageUpsert) => {
             
 
 
-  sock.ev.on("connection.update", async (update) => {
+  /*sock.ev.on("connection.update", async (update) => {
     try {
       const { connection, lastDisconnect } = update;
       const reasonCode = new Boom(lastDisconnect?.error)?.output?.statusCode || 0;
@@ -625,7 +629,7 @@ sock.ev.on("messages.upsert", async (messageUpsert) => {
   });
 
   
-  sock.ev.on("creds.update", saveCreds);
+  sock.ev.on("creds.update", saveCreds);*/
 
 
 
