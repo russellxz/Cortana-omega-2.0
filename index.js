@@ -142,6 +142,7 @@ const fetch = require("node-fetch");
     // Carga de credenciales y estado de autenticación
     const { state, saveCreds } = await useMultiFileAuthState("./sessions");
   const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
+  const path = require("path");
   //lista
 function isAllowedUser(sender) {
   const listaFile = "./lista.json";
