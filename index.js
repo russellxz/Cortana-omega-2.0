@@ -585,12 +585,8 @@ let reconnectionAttempts = {}; // conteo por sesión
             setTimeout(startBot, 5000); // Intentar reconectar después de 5 segundos en caso de error
         }
     }
-
-  
-
-  
-  
 await reconectarSubbotsExistentes();
-    startBot();
 
+    startBot();
+  
 })();
