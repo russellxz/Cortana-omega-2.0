@@ -155,7 +155,7 @@ function isAllowedUser(sender) {
     
     //privado y admins
 
-const path = "./activos.json";
+
 
 // 📂 Cargar configuración de modos desde el archivo JSON
 function cargarModos() {
@@ -592,7 +592,7 @@ sock.ev.on("connection.update", async (update) => {
             setTimeout(startBot, 5000); // Intentar reconectar después de 5 segundos en caso de error
         }
     }
-
+await reconectarSubbotsExistentes();
     startBot();
 
 })();
