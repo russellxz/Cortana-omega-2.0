@@ -490,7 +490,7 @@ sock.ev.on("messages.upsert", async (messageUpsert) => {
 });
             
             
-            
+const path = require("path");            
 const { Boom } = require("@hapi/boom");
 let reconnectionAttempts = {}; // conteo por sesión
 
@@ -570,7 +570,7 @@ sock.ev.on("connection.update", async (update) => {
 
 
 
-const path = require("path");
+
             
  
     
