@@ -592,7 +592,7 @@ sock.ev.on("connection.update", async (update) => {
             setTimeout(startBot, 5000); // Intentar reconectar después de 5 segundos en caso de error
         }
     }
-await reconectarSubbotsExistentes(); // 🔁 RECONEXIÓN automática de subbots 
+
     startBot();
 
 })();
