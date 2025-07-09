@@ -96,14 +96,19 @@ function gestionarConexion(sock, isSubbot = false) {
 
       if (connection === "connecting") {
         console.log(chalk.blue(`🔄 Conectando a WhatsApp... (${isSubbot ? "subbot" : "bot principal"})`));
-      } else if (connection === "open") {
+      }
+
+      else if (connection === "open") {
         console.log(chalk.green(`✅ ¡Conexión establecida con éxito! (${isSubbot ? "subbot" : "bot principal"})`));
+
         if (isSubbot) {
           console.log(chalk.cyan(`🤖 Subbot ${chalk.bold(idSesion)} reconectado correctamente.`));
         }
 
+        // Resetear contador de reconexión
         reconnectionAttempts[idSesion] = 0;
 
+        // Solo para el bot principal
         if (!isSubbot) {
           const restarterFile = "./lastRestarter.json";
           if (fs.existsSync(restarterFile)) {
@@ -116,7 +121,9 @@ function gestionarConexion(sock, isSubbot = false) {
             }
           }
         }
-      } else if (connection === "close") {
+      }
+
+      else if (connection === "close") {
         console.log(chalk.red(`❌ Conexión cerrada (${isSubbot ? "subbot" : "principal"}: ${idSesion})`));
         console.log(chalk.red(`🔁 Intentando reconectar... Motivo: ${reasonText}`));
 
@@ -138,13 +145,14 @@ function gestionarConexion(sock, isSubbot = false) {
           setTimeout(startBot, 5000);
         }
       }
+
     } catch (err) {
       console.error("❌ Error en gestionarConexion:", err);
     }
   });
 
   sock.ev.on("creds.update", saveCreds);
-}  
+}
   //nsfw 
 async function getPrompt() {
   try {
