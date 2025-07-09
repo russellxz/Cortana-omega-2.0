@@ -23,11 +23,12 @@ const handler = async (msg, { conn, command }) => {
 
   async function serbot() {
     try {
-      const number      = msg.key?.participant || msg.key.remoteJid;
-      const sessionDir  = path.join(__dirname, "../subbots");
+      const number = msg.key?.participant || msg.key.remoteJid;
+      const sessionDir = path.join(__dirname, "../subbots");
       const sessionPath = path.join(sessionDir, number);
-      const rid         = number.split("@")[0];
+      const rid = number.split("@")[0];
 
+      // 🛠 Verificar carpeta
       if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
 
       const subbotDirs = fs.readdirSync(sessionDir)
@@ -63,19 +64,24 @@ const handler = async (msg, { conn, command }) => {
         syncFullHistory: false,
       });
 
-      socky.sessionPath = sessionPath; // necesario para saber si es subbot
+      socky.sessionPath = sessionPath;
 
-      socky.ev.on("connection.update", async ({ qr, connection }) => {
+      let reconnectionAttempts = 0;
+      const maxReconnectionAttempts = 3;
+
+      socky.ev.on("connection.update", async ({ qr, connection, lastDisconnect }) => {
         if (qr && !sentCodeMessage) {
           if (usarPairingCode) {
             const code = await socky.requestPairingCode(rid);
             await conn.sendMessage(msg.key.remoteJid, {
-              video:  { url: "https://cdn.russellxz.click/b0cbbbd3.mp4" },
+              video: { url: "https://cdn.russellxz.click/b0cbbbd3.mp4" },
               caption: "🔐 *Código generado:*\nAbre WhatsApp > Vincular dispositivo y pega el siguiente código:",
               gifPlayback: true
             }, { quoted: msg });
             await sleep(1000);
-            await conn.sendMessage(msg.key.remoteJid, { text: "```" + code + "```" }, { quoted: msg });
+            await conn.sendMessage(msg.key.remoteJid, {
+              text: "```" + code + "```"
+            }, { quoted: msg });
           } else {
             const qrImage = await QRCode.toBuffer(qr);
             await conn.sendMessage(msg.key.remoteJid, {
@@ -86,40 +92,90 @@ const handler = async (msg, { conn, command }) => {
           sentCodeMessage = true;
         }
 
-        if (connection === "open") {
-          await conn.sendMessage(msg.key.remoteJid, {
-            text:
+        switch (connection) {
+          case "open":
+            await conn.sendMessage(msg.key.remoteJid, {
+              text:
 `🤖 𝙎𝙐𝘽𝘽𝙊𝙏 𝘾𝙊𝙉𝙀𝘾𝙏𝘼𝘿𝙊 - Cortana 2.0
 
-✅ Bienvenido al sistema premium de CORTANA 2.0 BOT  
-🛰️ Tu subbot ya está en línea y operativo.
+✅ El subbot ya está conectado.
+💠 Usa .setprefix para personalizar.
+💠 Usa .addgrupo o .addlista para autorizar usuarios o grupos.
+💠 Solo responderá a los que tú permitas.
 
-📩 *Importante:* Revisa tu mensaje privado para ver las instrucciones.
+⚙️ Panel: SkyUltraPlus`
+            }, { quoted: msg });
 
-🛠️ Comandos básicos:  
-• \`help\` → Ayuda general  
-• \`menu\` → Lista de comandos
+            await conn.sendMessage(msg.key.remoteJid, { react: { text: "🔁", key: msg.key } });
 
-✨ Cambiar prefijo:  
-Usa: \`.setprefix ✨\`  
+            try {
+              // 🧠 Integra con sistema principal
+              gestionarConexion(socky, true);
+              socky.ev.on("creds.update", saveCreds);
+            } catch (err) {
+              console.error("[Subbots] Error al activar gestión:", err);
+            }
+            break;
 
-🧹 Borrar sesión:  
-• \`.delbots\` o vuelve a usar \`.code\` / \`.sercode\`
+          case "close": {
+            const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
+            const messageError = DisconnectReason[reason] || `Código desconocido: ${reason}`;
 
-💎 BY Sky Ultra Plus 💎`
-          }, { quoted: msg });
+            const eliminarSesion = () => {
+              if (fs.existsSync(sessionPath)) fs.rmSync(sessionPath, { recursive: true, force: true });
+            };
 
-          await conn.sendMessage(msg.key.remoteJid, { react: { text: "🔁", key: msg.key } });
+            switch (reason) {
+              case 401:
+              case DisconnectReason.badSession:
+              case DisconnectReason.loggedOut:
+                await conn.sendMessage(msg.key.remoteJid, {
+                  text: `⚠️ *Sesión eliminada.*\n${messageError}\nUsa ${global.prefix}sercode para volver a conectar.`
+                }, { quoted: msg });
+                eliminarSesion();
+                break;
 
-          // Integrar con el sistema del bot principal
-          gestionarConexion(socky, true); // usa el mismo sistema que el index.js
-          socky.ev.on("creds.update", saveCreds);
+              case DisconnectReason.restartRequired:
+                if (reconnectionAttempts < maxReconnectionAttempts) {
+                  reconnectionAttempts++;
+                  await sleep(3000);
+                  await serbot();
+                  return;
+                }
+                await conn.sendMessage(msg.key.remoteJid, { text: `⚠️ *Reintentos de conexión fallidos.*` }, { quoted: msg });
+                break;
+
+              case DisconnectReason.connectionReplaced:
+                console.log(`ℹ️ Sesión reemplazada por otra instancia.`);
+                break;
+
+              default:
+                await conn.sendMessage(msg.key.remoteJid, {
+                  text: `╭───〔 *⚠️ SUBBOT* 〕───╮
+│
+│⚠️ *Problema de conexión detectado:*
+│ ${messageError}
+│ Intentando reconectar...
+│
+│ 🔄 Si sigues en problemas, ejecuta:
+│ #delbots
+│ para eliminar tu sesión y conéctate de nuevo con:
+│ #sercode /  #code
+│
+╰────✦ *Sky Ultra Plus* ✦────╯`
+                }, { quoted: msg });
+                break;
+            }
+            break;
+          }
         }
       });
 
     } catch (e) {
       console.error("❌ Error en serbot:", e);
-      await conn.sendMessage(msg.key.remoteJid, { text: `❌ *Error inesperado:* ${e.message}` }, { quoted: msg });
+      await conn.sendMessage(msg.key.remoteJid, {
+        text: `❌ *Error inesperado:* ${e.message}`
+      }, { quoted: msg });
     }
   }
 
@@ -127,6 +183,6 @@ Usa: \`.setprefix ✨\`
 };
 
 handler.command = ["sercode", "code", "jadibot", "serbot", "qr"];
-handler.tags    = ["owner"];
-handler.help    = ["serbot", "code"];
-module.exports  = handler;
+handler.tags = ["owner"];
+handler.help = ["serbot", "code"];
+module.exports = handler;
