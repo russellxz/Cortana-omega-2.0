@@ -452,58 +452,34 @@ sock.ev.on("messages.upsert", async (messageUpsert) => {
     const isSubbot = sock.sessionPath && sock.sessionPath.includes("subbots");
     const subbotID = sock.user?.id?.split(":")[0] + "@s.whatsapp.net";
 
-    // 🔷 Lógica para subbots
+    // Prefijo personalizado si es subbot
+    let customPrefix = ".";
     if (isSubbot) {
-      const fs = require("fs");
-      const path = require("path");
-      const prefixPath = path.resolve("prefixes.json");
-
-      // Prefijo personalizado
-      let customPrefix = ".";
       try {
+        const prefixPath = require("path").resolve("prefixes.json");
         if (fs.existsSync(prefixPath)) {
           const dataPrefix = JSON.parse(fs.readFileSync(prefixPath));
           customPrefix = dataPrefix[subbotID] || ".";
         }
       } catch (e) {}
-
-      const allowedPrefixes = [customPrefix, "#"];
-      const usedPrefix = allowedPrefixes.find((p) => messageText.startsWith(p));
-      if (!usedPrefix) return;
-
-      const body = messageText.slice(usedPrefix.length).trim();
-      const command = body.split(" ")[0].toLowerCase();
-      const args = body.split(" ").slice(1);
-
-      // Ejecutar comandos desde plugins2/
-      const filePath = path.join(__dirname, "plugins2", `${command}.js`);
-      if (fs.existsSync(filePath)) {
-        const plugin = require(filePath);
-        if (plugin && typeof plugin === "function") {
-          await plugin(msg, { conn: sock, text: args.join(" "), command });
-        } else if (plugin?.command?.includes?.(command)) {
-          await plugin.run(sock, msg, args);
-        }
-      }
-
-      return; // ya ejecutado
     }
 
-    // 🔷 Lógica del bot principal
-    const activos = fs.existsSync("./activos.json") ? JSON.parse(fs.readFileSync("./activos.json")) : {};
-    const lista = fs.existsSync("./lista.json") ? JSON.parse(fs.readFileSync("./lista.json")) : [];
-    const isAllowedUser = (num) => lista.includes(num);
+    const allowedPrefixes = [customPrefix, "#"];
+    const usedPrefix = allowedPrefixes.find((p) => messageText.startsWith(p));
+    if (!usedPrefix) return;
 
+    const command = messageText.slice(usedPrefix.length).trim().split(" ")[0].toLowerCase();
+    const args = messageText.slice(usedPrefix.length + command.length).trim().split(" ");
+
+    // 🟢 Consola: mostrar info del mensaje
     console.log(chalk.yellow(`\n📩 Nuevo mensaje recibido`));
-    console.log(chalk.green(`📨 De: ${fromMe ? "[Tú]" : "[Usuario]"} ${chalk.bold(sender)}`));
+    console.log(chalk.green(`📨 De: ${fromMe ? "[Tú]" : "[Usuario]"} ${chalk.bold(sender)}${isSubbot ? " [subbot]" : ""}`));
     console.log(chalk.cyan(`💬 Mensaje: ${chalk.bold(messageText || "📂 (Mensaje multimedia)")}`));
     console.log(chalk.gray("──────────────────────────"));
 
-    if (messageText.startsWith(global.prefix)) {
-      const command = messageText.slice(global.prefix.length).trim().split(" ")[0];
-      const args = messageText.slice(global.prefix.length + command.length).trim().split(" ");
-      handleCommand(sock, msg, command, args, sender);
-    }
+    // Ejecutar comando
+    handleCommand(sock, msg, command, args, sender);
+
   } catch (error) {
     console.error("❌ Error en messages.upsert:", error);
   }
