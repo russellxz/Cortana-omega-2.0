@@ -57,9 +57,6 @@ async function reconectarSubbotsExistentes() {
     }
   }
 }
-  function gestionarConexion(sock, isSubbot = false) {
-  const sessionPath = sock.sessionPath || "./sessions";
-  const idSesion = sessionPath.split(/[\\/]/).pop();
   
 async function iniciarSubbotDesdePath(sessionPath) {
   const { useMultiFileAuthState, fetchLatestBaileysVersion, makeCacheableSignalKeyStore, default: makeWASocket } = require('@whiskeysockets/baileys');
