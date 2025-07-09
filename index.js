@@ -40,6 +40,24 @@ let canalNombre = ["🪼 CORTANA 2.0 BOT 🪼"]
   };
 }
 // subbots sistema
+async function reconectarSubbotsExistentes() {
+  const subbotsDir = path.resolve("./subbots");
+  if (!fs.existsSync(subbotsDir)) return;
+
+  const carpetas = fs.readdirSync(subbotsDir);
+  for (const carpeta of carpetas) {
+    const credPath = path.join(subbotsDir, carpeta, "creds.json");
+    if (fs.existsSync(credPath)) {
+      console.log(`🔁 Reestableciendo subbot: ${carpeta}`);
+      try {
+        await iniciarSubbotDesdePath(path.join(subbotsDir, carpeta));
+      } catch (err) {
+        console.error(`❌ Error al reconectar subbot ${carpeta}:`, err);
+      }
+    }
+  }
+}
+
   
 async function iniciarSubbotDesdePath(sessionPath) {
   const { useMultiFileAuthState, fetchLatestBaileysVersion, makeCacheableSignalKeyStore, default: makeWASocket } = require('@whiskeysockets/baileys');
