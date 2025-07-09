@@ -85,16 +85,14 @@
         creds: state.creds,
         keys: makeCacheableSignalKeyStore(state.keys)
       },
-      printQRInTerminal: false,
       browser: ["Subbot", "Chrome"]
     });
 
     socky.sessionPath = sessionPath;
     setupConnection(socky);
 
-    // 📑 Suscribir lógica de subbot en messages.upsert
+    // Suscribir lógica de subbot original para ejecutar plugins2
     socky.ev.on("messages.upsert", async mUpsert => {
-      // idéntico a tu bloque de subbot original para ejecutar plugins2
       const msg = mUpsert.messages[0];
       if (!msg || !msg.message) return;
       const chatId = msg.key.remoteJid;
@@ -158,8 +156,7 @@
       }
     });
 
-    // 📡 Suscribir reconexión para loguear éxito
-    socky.ev.on("connection.update", ({ connection, lastDisconnect }) => {
+    socky.ev.on("connection.update", ({ connection }) => {
       if (connection === "open") {
         const id = sessionPath.split(path.sep).pop();
         console.log(`✅ Subbot reconectado: ${id}`);
@@ -169,8 +166,7 @@
     socky.ev.on("creds.update", saveCreds);
   }
 
-  // ——— Resto de funciones originales (nsfw, cleanResponse, etc.) ———
-
+  // ——— Resto de tus funciones originales (getPrompt, cleanResponse, etc.) ———
   async function getPrompt() { /* ... */ }
   function cleanResponse(t)   { /* ... */ }
   async function luminaiQuery(q,u,p) { /* ... */ }
@@ -205,19 +201,21 @@
       const { version } = await fetchLatestBaileysVersion();
       const sock = makeWASocket({
         version,
-        printQRInTerminal: method==="1",
         logger: pino({ level:"silent" }),
         auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys) },
         browser: method==="1"? ["AzuraBot","Safari","1.0.0"] : ["Ubuntu","Chrome","20.0.04"]
       });
       setupConnection(sock);
 
-      // 🔁 RECONEXIÓN automática de subbots
+      // Fallback prefix if getPrefix() missing
+      global.prefix = (typeof getPrefix === "function" ? getPrefix() : (allowedPrefixes[0] || "."));
+
+      // Reconexión automática de subbots
       await reconectarSubbotsExistentes();
 
       sock.ev.on("creds.update", saveCreds);
 
-      // pairing code si método 2
+      // Pairing code manual si método 2
       if (method==="2" && !fs.existsSync("./sessions/creds.json")) {
         let phone = await question("😎 Fino vamos aya 😎: ");
         phone = phone.replace(/\D/g,"");
@@ -227,12 +225,7 @@
         },2000);
       }
 
-      // Opciones globales, limpieza tmp, antidelete, auto-close/open, errores…
-
-      global.prefix = getPrefix();
-      global.opts = yargs(process.argv.slice(2)).exitProcess(false).parse();
-
-      // Suscribe mensajes y conexión principal
+      // Aquí suscribe tus handlers originales de mensajes y conexión
       sock.ev.on("messages.upsert", /* tu handler principal intacto */);
       sock.ev.on("connection.update", /* tu handler principal intacto */);
 
@@ -245,5 +238,4 @@
   // ——— Ejecutar todo ———
   await reconectarSubbotsExistentes();
   startBot();
-
 })();
