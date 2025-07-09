@@ -562,13 +562,16 @@ sock.ev.on("messages.upsert", async (messageUpsert) => {
 
 
 
+function gestionarConexion(sock, isSubbot = false) {
+  const sessionPath = sock.sessionPath || "./sessions";
+  const idSesion = sessionPath.split(/[\\/]/).pop();
+  const maxIntentos = 3;
 
   sock.ev.on("connection.update", async (update) => {
     try {
       const { connection, lastDisconnect } = update;
       const reasonCode = new Boom(lastDisconnect?.error)?.output?.statusCode || 0;
       const reasonText = require("@whiskeysockets/baileys").DisconnectReason[reasonCode] || "Motivo desconocido";
-      const maxIntentos = 3;
 
       if (connection === "connecting") {
         console.log(chalk.blue(`🔄 Conectando a WhatsApp... (${isSubbot ? "subbot" : "bot principal"})`));
@@ -576,26 +579,24 @@ sock.ev.on("messages.upsert", async (messageUpsert) => {
 
       else if (connection === "open") {
         console.log(chalk.green(`✅ ¡Conexión establecida con éxito! (${isSubbot ? "subbot" : "bot principal"})`));
+
         if (isSubbot) {
           console.log(chalk.cyan(`🤖 Subbot ${chalk.bold(idSesion)} reconectado correctamente.`));
         }
 
+        // Resetear contador de reconexión
         reconnectionAttempts[idSesion] = 0;
 
+        // Solo para el bot principal
         if (!isSubbot) {
           const restarterFile = "./lastRestarter.json";
           if (fs.existsSync(restarterFile)) {
-            try {
-              const data = JSON.parse(fs.readFileSync(restarterFile, "utf-8"));
-              if (data.chatId) {
-                await sock.sendMessage(data.chatId, {
-                  text: "✅ *El bot está en línea nuevamente tras el reinicio.* 🚀"
-                });
-                console.log(chalk.green("📢 Notificación enviada al chat del reinicio."));
-                fs.unlinkSync(restarterFile);
-              }
-            } catch (error) {
-              console.error("❌ Error al procesar lastRestarter.json:", error);
+            const data = JSON.parse(fs.readFileSync(restarterFile, "utf-8"));
+            if (data.chatId) {
+              await sock.sendMessage(data.chatId, {
+                text: "✅ *El bot está en línea nuevamente tras el reinicio.* 🚀"
+              });
+              fs.unlinkSync(restarterFile);
             }
           }
         }
@@ -615,23 +616,21 @@ sock.ev.on("messages.upsert", async (messageUpsert) => {
             }, 3000);
           } else {
             console.log(chalk.red(`💥 Subbot (${idSesion}) falló ${maxIntentos} veces. Eliminando sesión.`));
-            try {
-              fs.rmSync(sessionPath, { recursive: true, force: true });
-              console.log(chalk.gray(`🧹 Sesión eliminada: ${sessionPath}`));
-            } catch (err) {
-              console.error("❌ Error al eliminar sesión:", err);
-            }
+            fs.rmSync(sessionPath, { recursive: true, force: true });
+            console.log(chalk.gray(`🧹 Sesión eliminada: ${sessionPath}`));
           }
         } else {
           console.log(chalk.blue("🔄 Reiniciando el bot principal en 5 segundos..."));
           setTimeout(startBot, 5000);
         }
       }
-    } catch (error) {
-      console.error("❌ Error en gestionarConexion:", error);
+
+    } catch (err) {
+      console.error("❌ Error en gestionarConexion:", err);
     }
   });
 
+  
   sock.ev.on("creds.update", saveCreds);
 
 
