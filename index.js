@@ -524,36 +524,131 @@ if (update.action === "add" && welcomeActivo) {
 sock.ev.on("messages.upsert", async (messageUpsert) => {
   try {
     const msg = messageUpsert.messages[0];
-    if (!msg) return;
-    
+    if (!msg || !msg.message) return;
+
     const chatId = msg.key.remoteJid;
     const isGroup = chatId.endsWith("@g.us");
     const sender = msg.key.participant
       ? msg.key.participant.replace(/[^0-9]/g, "")
       : msg.key.remoteJid.replace(/[^0-9]/g, "");
-    const botNumber = sock.user.id.split(":")[0];
+    const botNumber = sock.user.id.split(":")[0].replace(/[^0-9]/g, "");
     const fromMe = msg.key.fromMe || sender === botNumber;
-    let messageText = msg.message?.conversation || msg.message?.extendedTextMessage?.text || "";
-    let messageType = Object.keys(msg.message || {})[0];
 
+    let messageText =
+      msg.message?.conversation ||
+      msg.message?.extendedTextMessage?.text ||
+      msg.message?.imageMessage?.caption ||
+      msg.message?.videoMessage?.caption ||
+      "";
+
+    const isSubbot = sock.sessionPath && sock.sessionPath.includes("subbots");
+    const subbotID = sock.user?.id?.split(":")[0] + "@s.whatsapp.net";
+
+    // 🔷 Si es subbot, aplicar lógica estricta
+    if (isSubbot) {
+      const fs = require("fs");
+      const path = require("path");
+
+      const grupoPath = path.resolve("grupo.json");
+      const listaPrivPath = path.resolve("listasubots.json");
+      const prefixPath = path.resolve("prefixes.json");
+
+      // 1. Prefijo personalizado o por defecto
+      let customPrefix = ".";
+      try {
+        if (fs.existsSync(prefixPath)) {
+          const dataPrefix = JSON.parse(fs.readFileSync(prefixPath));
+          customPrefix = dataPrefix[subbotID] || ".";
+        }
+      } catch (e) {}
+
+      const allowedPrefixes = [customPrefix, "#"];
+      const usedPrefix = allowedPrefixes.find((p) => messageText.startsWith(p));
+      if (!usedPrefix) return;
+
+      const body = messageText.slice(usedPrefix.length).trim();
+      const command = body.split(" ")[0].toLowerCase();
+      const args = body.split(" ").slice(1);
+
+      // 2. GRUPO
+      if (isGroup) {
+        let gruposPermitidos = [];
+        try {
+          if (fs.existsSync(grupoPath)) {
+            const dataGrupos = JSON.parse(fs.readFileSync(grupoPath));
+            gruposPermitidos = Array.isArray(dataGrupos[subbotID]) ? dataGrupos[subbotID] : [];
+          }
+        } catch (e) {}
+
+        const allowedCommands = ["addgrupo"]; // estos comandos siempre funcionan
+        const esAdminGrupo = msg.key.fromMe || sender === botNumber;
+
+        if (!gruposPermitidos.includes(chatId) && !allowedCommands.includes(command)) {
+          return;
+        }
+
+        // Ejecutar comandos desde plugins2/
+        const filePath = path.join(__dirname, "plugins2", `${command}.js`);
+        if (fs.existsSync(filePath)) {
+          const plugin = require(filePath);
+          if (plugin && typeof plugin === "function") {
+            await plugin(msg, { conn: sock, text: args.join(" "), command });
+          } else if (plugin?.command?.includes?.(command)) {
+            await plugin.run(sock, msg, args);
+          }
+        }
+
+        return;
+      }
+
+      // 3. PRIVADO
+      if (!isGroup) {
+        if (!fromMe) {
+          let listaPermitidos = [];
+          try {
+            if (fs.existsSync(listaPrivPath)) {
+              const dataLista = JSON.parse(fs.readFileSync(listaPrivPath));
+              listaPermitidos = Array.isArray(dataLista[subbotID]) ? dataLista[subbotID] : [];
+            }
+          } catch (e) {}
+
+          if (!listaPermitidos.includes(sender)) {
+            return;
+          }
+        }
+
+        // Ejecutar comandos desde plugins2/
+        const filePath = path.join(__dirname, "plugins2", `${command}.js`);
+        if (fs.existsSync(filePath)) {
+          const plugin = require(filePath);
+          if (plugin && typeof plugin === "function") {
+            await plugin(msg, { conn: sock, text: args.join(" "), command });
+          } else if (plugin?.command?.includes?.(command)) {
+            await plugin.run(sock, msg, args);
+          }
+        }
+
+        return;
+      }
+
+      return; // seguridad extra
+    }
+
+    // 🔷 BOT PRINCIPAL: lógica intacta
     const activos = fs.existsSync("./activos.json") ? JSON.parse(fs.readFileSync("./activos.json")) : {};
     const lista = fs.existsSync("./lista.json") ? JSON.parse(fs.readFileSync("./lista.json")) : [];
     const isAllowedUser = (num) => lista.includes(num);
 
     console.log(chalk.yellow(`\n📩 Nuevo mensaje recibido`));
     console.log(chalk.green(`📨 De: ${fromMe ? "[Tú]" : "[Usuario]"} ${chalk.bold(sender)}`));
-    console.log(chalk.cyan(`💬 Tipo: ${messageType}`));
     console.log(chalk.cyan(`💬 Mensaje: ${chalk.bold(messageText || "📂 (Mensaje multimedia)")}`));
     console.log(chalk.gray("──────────────────────────"));
 
-
-    // ✅ Procesar comando
     if (messageText.startsWith(global.prefix)) {
       const command = messageText.slice(global.prefix.length).trim().split(" ")[0];
       const args = messageText.slice(global.prefix.length + command.length).trim().split(" ");
       handleCommand(sock, msg, command, args, sender);
     }
-
   } catch (error) {
     console.error("❌ Error en messages.upsert:", error);
   }
