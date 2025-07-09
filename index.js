@@ -452,16 +452,13 @@ sock.ev.on("messages.upsert", async (messageUpsert) => {
     const isSubbot = sock.sessionPath && sock.sessionPath.includes("subbots");
     const subbotID = sock.user?.id?.split(":")[0] + "@s.whatsapp.net";
 
-    // 🔷 Si es subbot, aplicar lógica estricta
+    // 🔷 Lógica para subbots
     if (isSubbot) {
       const fs = require("fs");
       const path = require("path");
-
-      const grupoPath = path.resolve("grupo.json");
-      const listaPrivPath = path.resolve("listasubots.json");
       const prefixPath = path.resolve("prefixes.json");
 
-      // 1. Prefijo personalizado o por defecto
+      // Prefijo personalizado
       let customPrefix = ".";
       try {
         if (fs.existsSync(prefixPath)) {
@@ -478,71 +475,21 @@ sock.ev.on("messages.upsert", async (messageUpsert) => {
       const command = body.split(" ")[0].toLowerCase();
       const args = body.split(" ").slice(1);
 
-      // 2. GRUPO
-      if (isGroup) {
-        let gruposPermitidos = [];
-        try {
-          if (fs.existsSync(grupoPath)) {
-            const dataGrupos = JSON.parse(fs.readFileSync(grupoPath));
-            gruposPermitidos = Array.isArray(dataGrupos[subbotID]) ? dataGrupos[subbotID] : [];
-          }
-        } catch (e) {}
-
-        const allowedCommands = ["addgrupo"]; // estos comandos siempre funcionan
-        const esAdminGrupo = msg.key.fromMe || sender === botNumber;
-
-        if (!gruposPermitidos.includes(chatId) && !allowedCommands.includes(command)) {
-          return;
+      // Ejecutar comandos desde plugins2/
+      const filePath = path.join(__dirname, "plugins2", `${command}.js`);
+      if (fs.existsSync(filePath)) {
+        const plugin = require(filePath);
+        if (plugin && typeof plugin === "function") {
+          await plugin(msg, { conn: sock, text: args.join(" "), command });
+        } else if (plugin?.command?.includes?.(command)) {
+          await plugin.run(sock, msg, args);
         }
-
-        // Ejecutar comandos desde plugins2/
-        const filePath = path.join(__dirname, "plugins2", `${command}.js`);
-        if (fs.existsSync(filePath)) {
-          const plugin = require(filePath);
-          if (plugin && typeof plugin === "function") {
-            await plugin(msg, { conn: sock, text: args.join(" "), command });
-          } else if (plugin?.command?.includes?.(command)) {
-            await plugin.run(sock, msg, args);
-          }
-        }
-
-        return;
       }
 
-      // 3. PRIVADO
-      if (!isGroup) {
-        if (!fromMe) {
-          let listaPermitidos = [];
-          try {
-            if (fs.existsSync(listaPrivPath)) {
-              const dataLista = JSON.parse(fs.readFileSync(listaPrivPath));
-              listaPermitidos = Array.isArray(dataLista[subbotID]) ? dataLista[subbotID] : [];
-            }
-          } catch (e) {}
-
-          if (!listaPermitidos.includes(sender)) {
-            return;
-          }
-        }
-
-        // Ejecutar comandos desde plugins2/
-        const filePath = path.join(__dirname, "plugins2", `${command}.js`);
-        if (fs.existsSync(filePath)) {
-          const plugin = require(filePath);
-          if (plugin && typeof plugin === "function") {
-            await plugin(msg, { conn: sock, text: args.join(" "), command });
-          } else if (plugin?.command?.includes?.(command)) {
-            await plugin.run(sock, msg, args);
-          }
-        }
-
-        return;
-      }
-
-      return; // seguridad extra
+      return; // ya ejecutado
     }
 
-    // 🔷 BOT PRINCIPAL: lógica intacta
+    // 🔷 Lógica del bot principal
     const activos = fs.existsSync("./activos.json") ? JSON.parse(fs.readFileSync("./activos.json")) : {};
     const lista = fs.existsSync("./lista.json") ? JSON.parse(fs.readFileSync("./lista.json")) : [];
     const isAllowedUser = (num) => lista.includes(num);
@@ -565,71 +512,7 @@ sock.ev.on("messages.upsert", async (messageUpsert) => {
             
 
 
-  /*sock.ev.on("connection.update", async (update) => {
-    try {
-      const { connection, lastDisconnect } = update;
-      const reasonCode = new Boom(lastDisconnect?.error)?.output?.statusCode || 0;
-      const reasonText = require("@whiskeysockets/baileys").DisconnectReason[reasonCode] || "Motivo desconocido";
 
-      if (connection === "connecting") {
-        console.log(chalk.blue(`🔄 Conectando a WhatsApp... (${isSubbot ? "subbot" : "bot principal"})`));
-      }
-
-      else if (connection === "open") {
-        console.log(chalk.green(`✅ ¡Conexión establecida con éxito! (${isSubbot ? "subbot" : "bot principal"})`));
-
-        if (isSubbot) {
-          console.log(chalk.cyan(`🤖 Subbot ${chalk.bold(idSesion)} reconectado correctamente.`));
-        }
-
-        // Resetear contador de reconexión
-        reconnectionAttempts[idSesion] = 0;
-
-        // Solo para el bot principal
-        if (!isSubbot) {
-          const restarterFile = "./lastRestarter.json";
-          if (fs.existsSync(restarterFile)) {
-            const data = JSON.parse(fs.readFileSync(restarterFile, "utf-8"));
-            if (data.chatId) {
-              await sock.sendMessage(data.chatId, {
-                text: "✅ *El bot está en línea nuevamente tras el reinicio.* 🚀"
-              });
-              fs.unlinkSync(restarterFile);
-            }
-          }
-        }
-      }
-
-      else if (connection === "close") {
-        console.log(chalk.red(`❌ Conexión cerrada (${isSubbot ? "subbot" : "principal"}: ${idSesion})`));
-        console.log(chalk.red(`🔁 Intentando reconectar... Motivo: ${reasonText}`));
-
-        reconnectionAttempts[idSesion] = (reconnectionAttempts[idSesion] || 0) + 1;
-
-        if (isSubbot) {
-          if (reconnectionAttempts[idSesion] <= maxIntentos) {
-            console.log(chalk.yellow(`🔄 Reintentando subbot (${idSesion}) [Intento ${reconnectionAttempts[idSesion]}/${maxIntentos}]`));
-            setTimeout(() => {
-              iniciarSubbotDesdePath(sessionPath);
-            }, 3000);
-          } else {
-            console.log(chalk.red(`💥 Subbot (${idSesion}) falló ${maxIntentos} veces. Eliminando sesión.`));
-            fs.rmSync(sessionPath, { recursive: true, force: true });
-            console.log(chalk.gray(`🧹 Sesión eliminada: ${sessionPath}`));
-          }
-        } else {
-          console.log(chalk.blue("🔄 Reiniciando el bot principal en 5 segundos..."));
-          setTimeout(startBot, 5000);
-        }
-      }
-
-    } catch (err) {
-      console.error("❌ Error en gestionarConexion:", err);
-    }
-  });
-
-  
-  sock.ev.on("creds.update", saveCreds);*/
 
 
 
